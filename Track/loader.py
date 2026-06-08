@@ -9,7 +9,7 @@ def load_centerline(circuit_name: str) -> np.ndarray:
     if not os.path.exists(csv_path):
         raise FileNotFoundError(f"No CSV found for circuit '{circuit_name}'. Expected at: {csv_path}")
  
-    data = np.loadtxt(csv_path, delimiter=",")
+    data = np.loadtxt(csv_path, delimiter=",") * 0.1
  
     if data.ndim != 2 or data.shape[1] != 2:
         raise ValueError(f"CSV must have exactly 2 columns (x, y). Got shape: {data.shape}")
