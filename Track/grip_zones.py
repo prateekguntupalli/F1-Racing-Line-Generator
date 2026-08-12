@@ -7,9 +7,9 @@ KERB = "kerb"
 
 GRIP_TABLE = {
     "sunny": {
-        RACING_LINE: 0.98,
-        CLEAN:       0.96,
-        KERB:        0.85,
+        RACING_LINE: 0.95,
+        CLEAN:       0.94,
+        KERB:        0.80,
     },
     "dry": {
         RACING_LINE: 1.00,
