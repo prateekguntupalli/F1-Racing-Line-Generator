@@ -1,15 +1,14 @@
 import pygame
 import numpy as np
-
+from Visualization.speedcolormap import colors_for_speeds
 
 TRACK_SURFACE_COLOR = (70, 70, 78)
 TRACK_EDGE_COLOR     = (230, 230, 230)
 RUNOFF_COLOR         = (35, 35, 40)
 
-EDGE_LINE_WIDTH   = 1
-SCREEN_MARGIN_PX  = 80  # empty space kept around the track when auto-scaling
-
-
+EDGE_LINE_WIDTH    = 2
+RACING_LINE_RADIUS = 1
+SCREEN_MARGIN_PX   = 80  # empty space kept around the track when auto-scaling
 class TrackRenderer:
     def __init__(self, screen_width: int, screen_height: int):
         self.screen_width  = screen_width
@@ -18,10 +17,8 @@ class TrackRenderer:
         self.scale  = 1.0
         self.offset = (0.0, 0.0)
 
-        self._left_edge_px  = None
-        self._right_edge_px = None
-        self._left_runoff_px  = None
-        self._right_runoff_px = None
+        self._track_layer = None
+        self._line_layer  = None
 
     def fit(
         self,
@@ -30,7 +27,7 @@ class TrackRenderer:
         left_runoff:  np.ndarray = None,
         right_runoff: np.ndarray = None,
     ) -> None:
-
+        
         all_points = np.vstack([left_edge, right_edge])
         if left_runoff is not None and right_runoff is not None:
             all_points = np.vstack([all_points, left_runoff, right_runoff])
@@ -49,8 +46,6 @@ class TrackRenderer:
 
         self.scale = min(scale_x, scale_y)
 
-        # Centre the track: offset maps track-space (min_x, min_y) to the
-        # top-left of the margin, then centres any leftover space.
         scaled_w = track_width_m  * self.scale
         scaled_h = track_height_m * self.scale
 
@@ -61,41 +56,58 @@ class TrackRenderer:
         offset_y = SCREEN_MARGIN_PX + extra_y - min_y * self.scale
         self.offset = (offset_x, offset_y)
 
-        self._left_edge_px  = self._to_screen(left_edge)
-        self._right_edge_px = self._to_screen(right_edge)
+        left_px  = self._to_screen(left_edge)
+        right_px = self._to_screen(right_edge)
+
+        self._track_layer = self._new_layer()
 
         if left_runoff is not None and right_runoff is not None:
-            self._left_runoff_px  = self._to_screen(left_runoff)
-            self._right_runoff_px = self._to_screen(right_runoff)
-        else:
-            self._left_runoff_px  = None
-            self._right_runoff_px = None
+            self._draw_ribbon(
+                self._track_layer,
+                self._to_screen(left_runoff),
+                self._to_screen(right_runoff),
+                RUNOFF_COLOR,
+            )
+
+        self._draw_ribbon(self._track_layer, left_px, right_px, TRACK_SURFACE_COLOR)
+
+        pygame.draw.lines(self._track_layer, TRACK_EDGE_COLOR, True, left_px,  EDGE_LINE_WIDTH)
+        pygame.draw.lines(self._track_layer, TRACK_EDGE_COLOR, True, right_px, EDGE_LINE_WIDTH)
+
+        # Any previously drawn racing line is at the old scale, so drop it
+        self._line_layer = None
+
+    def set_racing_line(self, path: np.ndarray, v: np.ndarray) -> None:
+        colors = colors_for_speeds(v)
+        points = self._to_screen(path)
+
+        self._line_layer = self._new_layer()
+        for point, color in zip(points, colors):
+            pygame.draw.circle(
+                self._line_layer, color,
+                (int(point[0]), int(point[1])), RACING_LINE_RADIUS,
+            )
 
     def world_to_screen(self, point: np.ndarray) -> tuple:
-        # Convert a single (x, y) point in metres to screen pixel coords.
         x, y = point
-        sx = x * self.scale + self.offset[0]
-        sy = y * self.scale + self.offset[1]
-        return (sx, sy)
+        return (x * self.scale + self.offset[0], y * self.scale + self.offset[1])
+
+    def draw(self, screen: pygame.Surface) -> None:
+        if self._track_layer is not None:
+            screen.blit(self._track_layer, (0, 0))
+        if self._line_layer is not None:
+            screen.blit(self._line_layer, (0, 0))
+
+    def _new_layer(self) -> pygame.Surface:
+        return pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
 
     def _to_screen(self, points: np.ndarray) -> list:
         return [self.world_to_screen(p) for p in points]
 
-    def draw(self, screen: pygame.Surface) -> None:
-        # Draw runoff (if set), track surface, and edges. Call every frame.
-        if self._left_runoff_px is not None:
-            self._draw_ribbon(screen, self._left_runoff_px, self._right_runoff_px, RUNOFF_COLOR)
-
-        self._draw_ribbon(screen, self._left_edge_px, self._right_edge_px, TRACK_SURFACE_COLOR)
-
-        pygame.draw.lines(screen, TRACK_EDGE_COLOR, True, self._left_edge_px, EDGE_LINE_WIDTH)
-        pygame.draw.lines(screen, TRACK_EDGE_COLOR, True, self._right_edge_px, EDGE_LINE_WIDTH)
-
     @staticmethod
-    def _draw_ribbon(screen: pygame.Surface, left_px: list, right_px: list, color: tuple) -> None:
-
+    def _draw_ribbon(surface: pygame.Surface, left_px: list, right_px: list, color: tuple) -> None:
         n = len(left_px)
         for i in range(n):
             j = (i + 1) % n
             quad = [left_px[i], left_px[j], right_px[j], right_px[i]]
-            pygame.draw.polygon(screen, color, quad)
+            pygame.draw.polygon(surface, color, quad)
