@@ -15,6 +15,7 @@ from Solver.speed_solver import solve
 from Solver.lap_time import compute_lap_time, format_lap_time
 from Weather.conditions import DRY
 from Visualization.renderer import TrackRenderer
+from Visualization.car_animation import CarAnimation
 
 WINDOW_WIDTH  = 1400
 WINDOW_HEIGHT = 780
@@ -74,6 +75,8 @@ def main():
     renderer.fit(left_edge, right_edge, left_runoff, right_runoff)
     renderer.set_racing_line(path, v)
 
+    car_anim = CarAnimation(path, v)
+
     running = True
     while running:
         dt = clock.tick(FPS) / 1000.0  # delta time in seconds
@@ -84,10 +87,16 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                else:
+                    car_anim.handle_key(event.key)
+
+        car_anim.update(dt)
 
         screen.fill(BACKGROUND_COLOR)
 
         renderer.draw(screen)
+        car_anim.draw(screen, renderer)
+
         pygame.display.flip()
 
     pygame.quit()
