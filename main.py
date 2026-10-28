@@ -74,6 +74,7 @@ def main():
     renderer = TrackRenderer(WINDOW_WIDTH, WINDOW_HEIGHT)
     renderer.fit(left_edge, right_edge, left_runoff, right_runoff)
     renderer.set_racing_line(path, v)
+    renderer.set_markers(left_edge, right_edge)  # sector_fractions goes here once I have them
 
     car_anim = CarAnimation(path, v)
 
