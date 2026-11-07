@@ -16,9 +16,11 @@ from Solver.lap_time import compute_lap_time, format_lap_time
 from Weather.conditions import DRY
 from Visualization.renderer import TrackRenderer
 from Visualization.car_animation import CarAnimation
+from Visualization.telemetry import TelemetryPanel
 
 WINDOW_WIDTH  = 1400
 WINDOW_HEIGHT = 780
+PANEL_WIDTH   = 340  # telemetry panel on the right, the track gets the rest
 
 BACKGROUND_COLOR = (15, 15, 18)
 
@@ -71,12 +73,13 @@ def main():
     v, lap_time = compute_lap(path, left_edge, right_edge, car, CONDITION, LAP_TYPE)
     print(f"  Min {v.min() * 3.6:.1f} km/h | Max {v.max() * 3.6:.1f} km/h | Lap {format_lap_time(lap_time)}")
 
-    renderer = TrackRenderer(WINDOW_WIDTH, WINDOW_HEIGHT)
+    renderer = TrackRenderer(WINDOW_WIDTH - PANEL_WIDTH, WINDOW_HEIGHT)
     renderer.fit(left_edge, right_edge, left_runoff, right_runoff)
     renderer.set_racing_line(path, v)
     renderer.set_markers(left_edge, right_edge)  # sector_fractions goes here once I have them
 
     car_anim = CarAnimation(path, v)
+    panel    = TelemetryPanel((WINDOW_WIDTH - PANEL_WIDTH, 0, PANEL_WIDTH, WINDOW_HEIGHT), car_anim)
 
     running = True
     while running:
@@ -97,6 +100,7 @@ def main():
 
         renderer.draw(screen)
         car_anim.draw(screen, renderer)
+        panel.draw(screen)
 
         pygame.display.flip()
 

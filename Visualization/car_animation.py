@@ -3,8 +3,6 @@ import math
 import numpy as np
 import pygame
 
-from Solver.lap_time import format_lap_time
-
 
 CAR_LENGTH_PX = 14
 CAR_WIDTH_PX  = 6
@@ -12,9 +10,6 @@ CAR_COLOR     = (255, 255, 255)
 CAR_OUTLINE   = (20, 20, 20)
 
 SPEED_STEPS = [0.5, 1.0, 2.0, 4.0]
-
-HUD_COLOR = (230, 230, 230)
-HUD_POS   = (20, 16)
 
 
 class CarAnimation:
@@ -24,8 +19,6 @@ class CarAnimation:
         self.playing    = True
         self.speed_idx  = 1  # index into SPEED_STEPS, starts at 1x
         self.clock      = 0.0
-
-        self._font = None  # created lazily so pygame.font is ready by then
 
     def set_lap(self, path: np.ndarray, v: np.ndarray) -> None:
         if len(path) != len(v):
@@ -40,6 +33,7 @@ class CarAnimation:
 
         # Close the loop so the last segment runs back to the first point
         self._path = np.vstack([path, path[0]])
+        self._v    = np.append(np.asarray(v, dtype=float), v[0])  # closed the same way
 
         diffs = np.diff(self._path, axis=0)
         ds    = np.linalg.norm(diffs, axis=1)
@@ -87,7 +81,8 @@ class CarAnimation:
         elif key == pygame.K_DOWN:
             self.slower()
 
-    def state_at(self, t: float) -> tuple:
+    def _locate(self, t: float) -> tuple:
+        """Return (segment index, fraction along that segment) for lap time t."""
         t = t % self.lap_time
 
         i = int(np.searchsorted(self._times, t, side="right")) - 1
@@ -95,6 +90,10 @@ class CarAnimation:
 
         seg_len = self._times[i + 1] - self._times[i]
         frac    = (t - self._times[i]) / seg_len if seg_len > 1e-12 else 0.0
+        return i, frac
+
+    def state_at(self, t: float) -> tuple:
+        i, frac = self._locate(t)
 
         p0 = self._path[i]
         p1 = self._path[i + 1]
@@ -102,13 +101,18 @@ class CarAnimation:
 
         return float(pos[0]), float(pos[1]), float(self._headings[i])
 
+    def speed_at(self, t: float) -> float:
+        """Return the car's speed in m/s at lap time t (from the solver's profile)."""
+        i, frac = self._locate(t)
+        return float(self._v[i] + (self._v[i + 1] - self._v[i]) * frac)
+
     def current_index(self) -> int:
         """Index of the path point the car has most recently passed."""
         i = int(np.searchsorted(self._times, self.clock, side="right")) - 1
         return max(0, min(i, len(self._headings) - 1))
 
     def draw(self, screen: pygame.Surface, renderer) -> None:
-        """Draw the car and a small time readout. Call every frame."""
+        """Draw the car. Call every frame."""
         x, y, heading = self.state_at(self.clock)
         cx, cy = renderer.world_to_screen((x, y))
 
@@ -118,8 +122,7 @@ class CarAnimation:
         half_l = CAR_LENGTH_PX / 2.0
         half_w = CAR_WIDTH_PX  / 2.0
 
-        # Rectangle corners in the car's own frame (x forward, y sideways),
-        # rotated by the heading and moved to the screen position.
+        # Rectangle corners in the car's own frame (x forward, y sideways), rotated by the heading and moved to the screen position.
         corners = []
         for fx, fy in [(half_l, -half_w), (half_l, half_w), (-half_l, half_w), (-half_l, -half_w)]:
             sx = cx + fx * cos_h - fy * sin_h
@@ -128,17 +131,3 @@ class CarAnimation:
 
         pygame.draw.polygon(screen, CAR_COLOR, corners)
         pygame.draw.polygon(screen, CAR_OUTLINE, corners, 1)
-
-        self._draw_hud(screen)
-
-    def _draw_hud(self, screen: pygame.Surface) -> None:
-        if self._font is None:
-            self._font = pygame.font.SysFont(None, 24)
-
-        state = "playing" if self.playing else "paused"
-        text = (
-            f"{format_lap_time(self.clock)} / {format_lap_time(self.lap_time)}"
-            f"   {self.multiplier:g}x  {state}"
-        )
-        surface = self._font.render(text, True, HUD_COLOR)
-        screen.blit(surface, HUD_POS)
